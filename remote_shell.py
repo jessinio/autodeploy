@@ -117,6 +117,7 @@ class RemoteShell(object):
         self.login_user = login_user
         self.login_password = login_password
         if os.path.exists(root_password): 
+            # 指定密码文件, 从密码文件中取得数据
             self.root_password = pw_to_dict(root_password)
         else:
             self.root_password = {host:root_password}
