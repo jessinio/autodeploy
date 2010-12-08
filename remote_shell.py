@@ -19,11 +19,13 @@ except:
 
 
 import re
+import termios
 import optparse
 import pty
 import time
 import select
 import shlex
+import pdb
 
 DEBUG=True
 OUTPUT=True
@@ -45,18 +47,34 @@ def debug(info):
 
 def get_option():
     parser = optparse.OptionParser()
-    parser.add_option("--host", dest="host", help="host ip address", metavar="127.0.0.1")
-    parser.add_option("--login_user", dest="login_user", help="user who want to login", metavar="nobody")
-    parser.add_option("--login_password", default='', dest="login_password", help="password for who want to login", metavar="password")
-    parser.add_option("--root_password", default='', dest="root_password", help="password for root (use by su command), also can be a filepath", metavar="password")
-    parser.add_option("--end_prompt", default='PROMPT', dest="end_prompt", help="end flag string when run remote script", metavar="PROMPT")
-    parser.add_option("--default_password", default='', dest="default_password", help="default password for root (use by su command)", metavar="password")
-    parser.add_option("--expression", dest="expression", help="run in remote host", metavar="python {remote_data}/do.py")
-    #parser.add_option("--root_password_file", dest="root_password_file", help="password list for who want to login", metavar="/tmp/root_password.list")
-    parser.add_option("--timeout", default = 5, type="int", dest="timeout", help="wait for pty string output time", metavar="5")
-    parser.add_option("--data_path", dest="data_path", help="copy to remote host", metavar="/var/www")
-    parser.add_option("--output", dest="output", help="remote pty output information (stdout default", metavar="/tmp/auto.output")
-    parser.add_option("--debug", dest="debug", help="autodeploy tools self debug (stderr default)", metavar="/tmp/auto.debug")
+    parser.add_option("--host", dest="host", help="host ip address", \
+                        metavar="127.0.0.1")
+    parser.add_option("--login_user", dest="login_user", \
+                        help="user who want to login", metavar="nobody")
+    parser.add_option("--login_password", default='', dest="login_password", \
+                        help="password for who want to login", metavar="password")
+    parser.add_option("--root_password", default='', dest="root_password", \
+                        help="password for root (use by su command), also can be a filepath", \
+                        metavar="password")
+    parser.add_option("--ssh_key", dest="ssh_key", \
+                        help="ssh private key", metavar="~/.ssh/other_key")
+    parser.add_option("--end_prompt", default='PROMPT', dest="end_prompt", \
+                        help="end flag string when run remote script", metavar="PROMPT")
+    parser.add_option("--default_password", default='', dest="default_password", \
+                        help="default password for root (use by su command)", metavar="password")
+    parser.add_option("--expression", dest="expression", help="run in remote host", \
+                        metavar="python {remote_data}/do.py")
+    #parser.add_option("--root_password_file", dest="root_password_file", \
+    #                   help="password list for who want to login", \
+    #                   metavar="/tmp/root_password.list")
+    parser.add_option("--timeout", default = 5, type="int", dest="timeout", \
+                        help="wait for pty string output time", metavar="5")
+    parser.add_option("--data_path", dest="data_path", help="copy to remote host", \
+                        metavar="/var/www")
+    parser.add_option("--output", dest="output", help="remote pty output information (stdout default", \
+                        metavar="/tmp/auto.output")
+    parser.add_option("--debug", dest="debug", help="autodeploy tools self debug (stderr default)", \
+                        metavar="/tmp/auto.debug")
     parser.add_option("--root_pty", action="store_true", dest="root_pty", help="get pty shell")
 
     option = parser.parse_args()[0]
@@ -64,7 +82,11 @@ def get_option():
     # 选项检查
     if None in [option.host, option.login_user, option.data_path, option.expression]:
         parser.print_help()
-        print """\n\tExample:\n\t\tython remote_shell.py --host=10.20.188.53 --login_user=jessinio --data_path=/tmp/do.sh --expression="sh {remote_data}" --root_pty --root_password=password"""
+        print """\n\tExample:\n\t\tpython remote_shell.py \
+--host=10.20.188.53 \
+--login_user=jessinio --data_path=/tmp/do.sh \
+--expression="sh {remote_data}" --root_pty \
+--root_password=password"""
         sys.exit(1)
 
     if option.output:
@@ -112,7 +134,12 @@ def _expect_str_from_sock(sock, pattern, timeout):
 
 
 class RemoteShell(object):
-    def __init__(self, host, login_user, login_password, root_password, default_password=[], timeout=5):
+    def __init__(self, host, login_user, \
+                       login_password, \
+                       root_password, \
+                       default_password=[], \
+                       ssh_key=None, \
+                       timeout=5):
         self.host = host
         self.login_user = login_user
         self.login_password = login_password
@@ -121,6 +148,7 @@ class RemoteShell(object):
             self.root_password = pw_to_dict(root_password)
         else:
             self.root_password = {host:root_password}
+        self.ssh_key = ssh_key
         self.timeout = timeout
         self.sock = None
         self.root_shell_sock = False
@@ -131,7 +159,15 @@ class RemoteShell(object):
     def login(self):
         self.ssh_client = paramiko.SSHClient()
         self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh_client.connect(self.host, username=self.login_user, password=self.login_password)
+
+        if not self.ssh_key:
+            self.ssh_client.connect(self.host, username=self.login_user, password=self.login_password)
+        else:
+            self.ssh_client.connect(self.host, \
+                                    username=self.login_user, \
+                                    password=self.login_password, \
+                                    key_filename=self.ssh_key)
+
         channel = self.ssh_client.invoke_shell()
         self.sock = channel
 
@@ -180,23 +216,40 @@ class RemoteShell(object):
     def get_root_shell(self):
         'root用户登陆'
         if not self.login_user == 'root':
-            # 测试sudo命令
-            retval, flag, i = self.pty_send_line('#run by autodeploy tools')
+            ## 测试sudo命令
+            #retval, flag, i = self.pty_send_line('#run by autodeploy tools')
+            #output(retval)
+            #retval, flag, i = self.pty_send_line('sudo -i', ROOT_PROMPT)
+            #output(retval)
+            #if flag:
+            #    debug("[sudo] get root shell")
+            #else:
+
+            #pdb.set_trace()
+            # 发送 ctrl-C 字符
+            # copy from pexpect
+            #if hasattr(termios, 'VINTR'):
+            #    char = termios.tcgetattr(self.sock)[6][termios.VINTR]
+            #else:
+            #    # platform does not define VINTR so assume CTRL-C
+            #char = '\x03' #chr(3)
+            #self.sock.send(char)
+            #retval, flag, i = self.pty_send_line(char, USER_PROMPT)
+            #output(retval)
+            debug("can't call sudo, trying [su] command")
+            retval, flag, i = self.pty_send_line('su -', 'Password:')
             output(retval)
-            if self.pty_send_line('sudo -i', ROOT_PROMPT)[1]:
-                debug("[sudo] get root shell")
-            else:
-                debug("can't call sudo, trying [su] command")
-                retval, flag, i = self.pty_send_line('su -', 'Password:')
+            if flag:
+                # 输入密码
+                retval, flag, i = self.pty_send_line(self.root_password[self.host], ROOT_PROMPT)
                 output(retval)
                 if flag:
-                    retval, flag, i = self.pty_send_line(self.root_password[self.host], ROOT_PROMPT)
-                    output(retval)
-                    if flag:
-                        debug("[su -] get root shell")
-                    else:
-                        print >>sys.stderr, "Can't get root shell"
-                        sys.exit(1)
+                    debug("[su -] get root shell")
+                else:
+                    print >>sys.stderr, "Can't get root shell"
+                    sys.exit(1)
+            else:
+                print >>sys.stderr, "[su] command exception"
             
         
     def pty_send_line(self, cmd, expect_str=PROMPT, timeout=False):
@@ -215,6 +268,7 @@ if __name__ == "__main__":
                         option.login_password, \
                         option.root_password, \
                         option.default_password, \
+                        option.ssh_key, \
                         option.timeout)
     shell.login()
     shell.copy_to_remote(option.data_path)
