@@ -38,7 +38,7 @@ def get_option():
     parser.add_option("--root_password", default='', dest="root_password", help="password for root (use by su command), also can be a filepath", metavar="password")
     parser.add_option("--end_prompt", default='PROMPT', dest="end_prompt", help="end flag string when run remote script", metavar="PROMPT")
     parser.add_option("--default_password", default='', dest="default_password", help="default password for root (use by su command)", metavar="password")
-    parser.add_option("--expression", dest="expression", help="run in remote host", metavar="python /tmp/do.py")
+    parser.add_option("--expression", dest="expression", help="run in remote host", metavar="python {remote_data}/do.py")
     #parser.add_option("--root_password_file", dest="root_password_file", help="password list for who want to login", metavar="/tmp/root_password.list")
     parser.add_option("--timeout", default = 5, type="int", dest="timeout", help="wait for pty string output time", metavar="5")
     parser.add_option("--data_path", dest="data_path", help="copy to remote host", metavar="/var/www")
@@ -51,6 +51,7 @@ def get_option():
     # 选项检查
     if None in [option.host, option.login_user, option.data_path, option.expression]:
         parser.print_help()
+        print """\n\tExample:\n\t\tython remote_shell.py --host=10.20.188.53 --login_user=jessinio --data_path=/tmp/do.sh --expression="sh {remote_data}" --root_pty --root_password=password"""
         sys.exit(1)
 
     if option.output:
@@ -207,4 +208,9 @@ if __name__ == "__main__":
         shell.get_root_shell()
     #if option.expression:
     #    output(shell.pty_send_line("sleep 10", PROMPT, 0)[0])
-    output(shell.pty_send_line(option.expression, option.end_prompt, None)[0])
+
+    if "{remote_data}" in option.expression:
+        expression = option.expression.replace("{remote_data}", shell.remote_data_path)
+    else:
+        expression = option.expression
+    output(shell.pty_send_line(expression, option.end_prompt, None)[0])
