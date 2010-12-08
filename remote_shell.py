@@ -1,13 +1,26 @@
 #!/usr/bin/env python
 #coding: utf-8
 
-import re
-import optparse
-import paramiko
-import pdb
-import pty
 import os
 import sys
+import string
+try:
+    import paramiko
+except:
+    print >>sys.stderr, "can't import paramiko library"
+    try:
+        if raw_input("""Do you want to install paramiko library now ? 
+[ need root permission and easy_install ]""") in "yY":
+            os.system("easy_install paramiko")
+        else:
+            sys.exit(1)
+    except KeyboardInterrupt:
+        pass
+
+
+import re
+import optparse
+import pty
 import time
 import select
 import shlex
