@@ -15,7 +15,7 @@ except:
         else:
             sys.exit(1)
     except KeyboardInterrupt:
-        pass
+        sys.exit(1)
 
 
 import re
@@ -26,6 +26,7 @@ import time
 import select
 import shlex
 import pdb
+import traceback
 
 DEBUG=True
 OUTPUT=True
@@ -95,6 +96,11 @@ def get_option():
         DEBUG_DEV = open(option.debug, "w")
     if option.end_prompt == "PROMPT":
         option.end_prompt = PROMPT
+    if os.path.exists(option.host):
+        # host参数为文件名, 转成list对象
+        option.host = [ l.strip() for i in open(option.host) ]
+    else:
+        option.host = [option.host]
     return option
     
 def pw_to_dict(password_file):
@@ -262,22 +268,23 @@ class RemoteShell(object):
 
 if __name__ == "__main__":
     option = get_option()
-    shell = RemoteShell(option.host, \
-                        option.login_user, \
-                        option.login_password, \
-                        option.root_password, \
-                        option.default_password, \
-                        option.ssh_key, \
-                        option.timeout)
-    shell.login()
-    shell.copy_to_remote(option.data_path)
-    if option.root_pty:
-        shell.get_root_shell()
-    #if option.expression:
-    #    output(shell.pty_send_line("sleep 10", PROMPT, 0)[0])
+    for host in option.host:
+        shell = RemoteShell(host, \
+                            option.login_user, \
+                            option.login_password, \
+                            option.root_password, \
+                            option.default_password, \
+                            option.ssh_key, \
+                            option.timeout)
+        shell.login()
+        shell.copy_to_remote(option.data_path)
+        if option.root_pty:
+            shell.get_root_shell()
+        #if option.expression:
+        #    output(shell.pty_send_line("sleep 10", PROMPT, 0)[0])
 
-    if "{remote_data}" in option.expression:
-        expression = option.expression.replace("{remote_data}", shell.remote_data_path)
-    else:
-        expression = option.expression
-    output(shell.pty_send_line(expression, option.end_prompt, None)[0])
+        if "{remote_data}" in option.expression:
+            expression = option.expression.replace("{remote_data}", shell.remote_data_path)
+        else:
+            expression = option.expression
+        output(shell.pty_send_line(expression, option.end_prompt, None)[0])
