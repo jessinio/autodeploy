@@ -216,40 +216,39 @@ class RemoteShell(object):
     def get_root_shell(self):
         'root用户登陆'
         if not self.login_user == 'root':
-            ## 测试sudo命令
-            #retval, flag, i = self.pty_send_line('#run by autodeploy tools')
-            #output(retval)
-            #retval, flag, i = self.pty_send_line('sudo -i', ROOT_PROMPT)
-            #output(retval)
-            #if flag:
-            #    debug("[sudo] get root shell")
-            #else:
-
-            #pdb.set_trace()
-            # 发送 ctrl-C 字符
-            # copy from pexpect
-            #if hasattr(termios, 'VINTR'):
-            #    char = termios.tcgetattr(self.sock)[6][termios.VINTR]
-            #else:
-            #    # platform does not define VINTR so assume CTRL-C
-            #char = '\x03' #chr(3)
-            #self.sock.send(char)
-            #retval, flag, i = self.pty_send_line(char, USER_PROMPT)
-            #output(retval)
-            debug("can't call sudo, trying [su] command")
-            retval, flag, i = self.pty_send_line('su -', 'Password:')
+            # 测试sudo命令
+            retval, flag, i = self.pty_send_line('#run by autodeploy tools')
+            output(retval)
+            retval, flag, i = self.pty_send_line('sudo -i', ROOT_PROMPT)
             output(retval)
             if flag:
-                # 输入密码
-                retval, flag, i = self.pty_send_line(self.root_password[self.host], ROOT_PROMPT)
+                debug("[sudo] get root shell")
+            else:
+
+                # 发送 ctrl-C 字符
+                # copy from pexpect
+                #if hasattr(termios, 'VINTR'):
+                #    char = termios.tcgetattr(self.sock)[6][termios.VINTR]
+                #else:
+                #    # platform does not define VINTR so assume CTRL-C
+                #    char = '\x03' #chr(3)
+                #self.sock.send(char)
+                retval, flag, i = self.pty_send_line('\x03', USER_PROMPT)
+                output(retval)
+                debug("can't call sudo, trying [su] command")
+                retval, flag, i = self.pty_send_line('su -', 'Password:')
                 output(retval)
                 if flag:
-                    debug("[su -] get root shell")
+                    # 输入密码
+                    retval, flag, i = self.pty_send_line(self.root_password[self.host], ROOT_PROMPT)
+                    output(retval)
+                    if flag:
+                        debug("[su -] get root shell")
+                    else:
+                        print >>sys.stderr, "Can't get root shell"
+                        sys.exit(1)
                 else:
-                    print >>sys.stderr, "Can't get root shell"
-                    sys.exit(1)
-            else:
-                print >>sys.stderr, "[su] command exception"
+                    print >>sys.stderr, "[su] command exception"
             
         
     def pty_send_line(self, cmd, expect_str=PROMPT, timeout=False):
