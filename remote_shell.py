@@ -161,6 +161,7 @@ class RemoteShell(object):
         # 复制到 远程服务器的文件
         self.remote_data_path = None
         self.ssh_client = None
+        self.timestamp = time.strftime("%Y-%m-%d_%M-%S")
 
     def login(self):
         self.ssh_client = paramiko.SSHClient()
@@ -191,7 +192,7 @@ class RemoteShell(object):
     def copy_to_remote(self, data_path):
         '复制文件到远程服务器'
         basename = os.path.basename(data_path)
-        self.remote_data_path = "/tmp/%s_%s" % (basename, str(time.time()))
+        self.remote_data_path = "/tmp/%s_%s" % (basename, self.timestamp)
 
         sftp_client = self.ssh_client.open_sftp()
         if os.path.isdir(data_path):
