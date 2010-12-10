@@ -64,13 +64,8 @@ def get_option():
                         help="ssh private key", metavar="~/.ssh/other_key")
     parser.add_option("--end_prompt", default='PROMPT', dest="end_prompt", \
                         help="end flag string when run remote script", metavar="PROMPT")
-    parser.add_option("--default_password", default='', dest="default_password", \
-                        help="default password for root (use by su command)", metavar="password")
     parser.add_option("--expression", dest="expression", help="run in remote host", \
                         metavar="python {remote_data}/do.py")
-    #parser.add_option("--root_password_file", dest="root_password_file", \
-    #                   help="password list for who want to login", \
-    #                   metavar="/tmp/root_password.list")
     parser.add_option("--timeout", default = 5, type="int", dest="timeout", \
                         help="wait for pty string output time", metavar="5")
     parser.add_option("--data_path", dest="data_path", help="copy to remote host", \
@@ -147,7 +142,6 @@ class RemoteShell(object):
     def __init__(self, host, login_user, \
                        login_password, \
                        root_password, \
-                       default_password=[], \
                        ssh_key=None, \
                        timeout=5):
         self.host = host
@@ -288,7 +282,6 @@ if __name__ == "__main__":
                             option.login_user, \
                             option.login_password, \
                             option.root_password, \
-                            option.default_password, \
                             option.ssh_key, \
                             option.timeout)
         shell.login()
