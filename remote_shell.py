@@ -128,6 +128,9 @@ def _expect_str_from_sock(sock, pattern, timeout):
     while True:
         if select.select([sock, ], [],  [], timeout)[0]:
             tmp = sock.recv(1024)
+            # 每次读取到数据都输出
+            if tmp:
+                output(tmp)
             retval += tmp
             for i, p in enumerate(pattern):
                 if p.search(retval):
@@ -178,7 +181,6 @@ class RemoteShell(object):
 
         # 登陆时的提示符
         retval, index = self.expect_str_from_sock( PROMPT )
-        output(retval)
         debug("login")
 
     def expect_str_from_sock(self, pattern, timeout=False):
@@ -269,7 +271,6 @@ class RemoteShell(object):
         '运行远端服务器脚本'
         self.sock.sendall(cmd + "\n")
         retval, i = self.expect_str_from_sock(expect_str, timeout)
-        output(retval)
         if i < 0:
             debug("time out: %s" % cmd)
         return retval, i
