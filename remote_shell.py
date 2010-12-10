@@ -55,7 +55,7 @@ def get_option():
                         metavar="127.0.0.1")
     parser.add_option("--login_user", dest="login_user", \
                         help="user who want to login", metavar="nobody")
-    parser.add_option("--login_password", default='', dest="login_password", \
+    parser.add_option("--login_password", default='nopassword', dest="login_password", \
                         help="password for who want to login", metavar="password")
     parser.add_option("--root_password", default='', dest="root_password", \
                         help="password for root (use by su command), also can be a filepath", \
@@ -233,13 +233,14 @@ class RemoteShell(object):
             retval, i = self.pty_send_line('sudo -p "sudo password:" -i', [ROOT_PROMPT, "^sudo password:"])
             if i == 0 :
                 debug("[sudo] get root shell")
+                return True
             else:
                 if i == 1:
                     # 给sudo输入密码
                     retval, i = self.pty_send_line(self.login_password, [ROOT_PROMPT, "sudo password:"])
                     if i == 0 :
                         debug("[sudo] get root shell")
-                        return
+                        return True
                 # 所有未知情况: 调用su命令
 
                 # 发送 ctrl-C 字符
@@ -252,7 +253,7 @@ class RemoteShell(object):
                 #self.sock.send(char)
                 #retval, flag, i = self.pty_send_line('\x03', USER_PROMPT)
                 #output(retval)
-                self.sock.send('\x03')
+                self.sock.sendall('\x03')
                 output(self.sock.recv(1024))
                 #retval, flag, i = self.pty_send_line('\x03', USER_PROMPT)
                 debug("can't call sudo, trying [su] command")
@@ -262,6 +263,7 @@ class RemoteShell(object):
                     retval, i = self.pty_send_line(self.root_password[self.host], ROOT_PROMPT)
                     if i>-1:
                         debug("[su -] get root shell")
+                        return True
                     else:
                         print >>sys.stderr, "Can't get root shell"
                         sys.exit(1)
@@ -271,7 +273,7 @@ class RemoteShell(object):
         
     def pty_send_line(self, cmd, expect_str=PROMPT, timeout=False):
         '运行远端服务器脚本'
-        self.sock.send(cmd + "\n")
+        self.sock.sendall(cmd + "\n")
         retval, i = self.expect_str_from_sock(expect_str, timeout)
         output(retval)
         if i < 0:
@@ -292,7 +294,9 @@ if __name__ == "__main__":
         shell.login()
         shell.copy_to_remote(option.data_path)
         if option.root_pty:
-            shell.get_root_shell()
+            if not shell.get_root_shell():
+                print "Can't get root shell"
+                sys.exit(1)
         #if option.expression:
         #    output(shell.pty_send_line("sleep 10", PROMPT, 0)[0])
 
@@ -300,4 +304,5 @@ if __name__ == "__main__":
             expression = option.expression.replace("{remote_data}", shell.remote_data_path)
         else:
             expression = option.expression
-        output(shell.pty_send_line(expression, option.end_prompt, None)[0])
+        shell.pty_send_line(expression, option.end_prompt, None)
+        print 
